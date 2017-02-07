@@ -18,8 +18,13 @@ if [ "$NO_VERIFY" != "" ]; then
     exit 0
 fi
 
-hg status --change $HG_NODE | cut -b 3- | tr '\n' '\0' |
-xargs --null --no-run-if-empty git-lint;
+DIFF=$(hg status --change $HG_NODE | cut -b 3- | tr '\n' '\0')
+if [ -z "$DIFF" ]
+then
+  exit 0;
+else
+  git lint;
+fi
 
 if [ "$?" != "0" ]; then
   echo "There are some problems with the modified files.";
