@@ -14,12 +14,12 @@
 # limitations under the License.
 
 # First part return the files being commited, excluding deleted files.
-DIFF=$(git diff-index -z --cached HEAD --name-only --diff-filter=ACMRTUXB)
-if [ -z "$DIFF" ]
+DIFF_FILES=$(git diff-index -z --cached HEAD --name-only --diff-filter=ACMRTUXB)
+if [ -z "$DIFF_FILES" ]
 then
   exit 0;
 else
-  git lint;
+  echo $DIFF_FILES | xargs -0 git lint;
 fi
 
 if [ "$?" != "0" ]; then
