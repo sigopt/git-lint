@@ -18,12 +18,12 @@ if [ "$NO_VERIFY" != "" ]; then
     exit 0
 fi
 
-DIFF=$(hg status --change $HG_NODE | cut -b 3- | tr '\n' '\0')
-if [ -z "$DIFF" ]
+DIFF_FILES=$(hg status --change $HG_NODE | cut -b 3- | tr '\n' '\0')
+if [ -z "$DIFF_FILES" ]
 then
   exit 0;
 else
-  git lint;
+  echo $DIFF_FILES | xargs -0 git lint;
 fi
 
 if [ "$?" != "0" ]; then
