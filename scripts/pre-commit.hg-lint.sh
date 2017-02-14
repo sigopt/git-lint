@@ -23,7 +23,7 @@ if [ -z "$DIFF_FILES" ]
 then
   exit 0;
 else
-  echo $DIFF_FILES | xargs -0 git lint;
+  hg status --change $HG_NODE | cut -b 3- | tr '\n' '\0' | xargs -0 git lint;
 fi
 
 if [ "$?" != "0" ]; then
