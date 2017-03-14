@@ -14,8 +14,13 @@
 # limitations under the License.
 
 # First part return the files being commited, excluding deleted files.
-git diff-index -z --cached HEAD --name-only --diff-filter=ACMRTUXB |
-xargs --null --no-run-if-empty git lint;
+DIFF_FILES=$(git diff-index -z --cached HEAD --name-only --diff-filter=ACMRTUXB)
+if [ -z "$DIFF_FILES" ]
+then
+  exit 0;
+else
+  git diff-index -z --cached HEAD --name-only --diff-filter=ACMRTUXB | xargs -0 git lint;
+fi
 
 if [ "$?" != "0" ]; then
   echo "There are some problems with the modified files.";
