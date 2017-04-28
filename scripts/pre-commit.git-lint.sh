@@ -19,7 +19,7 @@ if [ -z "$DIFF_FILES" ]
 then
   exit 0;
 else
-  git diff-index -z --cached HEAD --name-only --diff-filter=ACMRTUXB | xargs -0 git lint;
+  git diff-index -z --cached HEAD --name-only --diff-filter=ACMRTUXB | xargs -0 git lint -f;
 fi
 
 if [ "$?" != "0" ]; then
