@@ -23,7 +23,29 @@ import gitlint
 # pylint: disable=too-many-public-methods
 
 
-class E2EBase(object):
+def get_linter_output(linter_name, file_path):
+    cache_path = os.path.expanduser('~/.git-lint/cache')
+    filename = os.path.join(cache_path, linter_name, file_path[1:])
+    if not os.path.exists(filename):
+        return 'No git-lint cache found for %s' % filename
+
+    with open(filename) as f:
+        output = f.read()
+    return output
+
+
+class E2EMixin(object):
+    """Mixin holding the actual end to end tests.
+
+    To define a concrete VCS e2e test, one needs to define a class extending
+    from E2EMixin and unittest.TestCase.
+
+    This class needs to implement to following methods:
+    - init_repo(cls)
+    - commit(message)
+    - add(filename)
+    """
+
     @staticmethod
     def lint():
         """Returns the response and ouput of git-lint."""
@@ -51,7 +73,7 @@ class E2EBase(object):
         if self.filename_repo is None:
             return
 
-        with open(self.filename_repo, 'w') as f:
+        with open(self.filename_repo, 'w'):
             pass
         self.add(self.filename_repo)
         self.commit('Commit teardown')
@@ -63,22 +85,12 @@ class E2EBase(object):
             f.write('Foo')
         self.add(filename)
         response, output = self.lint()
-        self.assertEquals(
-            0, response, 'Response %s != 0.\nOutput:\n%s' % (response, output))
+        self.assertEqual(0, response,
+                         'Response %s != 0.\nOutput:\n%s' % (response, output))
 
         self.assertIn(os.path.relpath(filename), output)
         self.assertIn('SKIPPED', output)
         self.assertIn(extension, output)
-
-    def get_linter_output(self, linter_name, file_path):
-        cache_path = os.path.expanduser('~/.git-lint/cache')
-        filename = os.path.join(cache_path, linter_name, file_path[1:])
-        if not os.path.exists(filename):
-            return 'No git-lint cache found for %s' % filename
-
-        with open(filename) as f:
-            output = f.read()
-        return output
 
     # TODO(skreft): check that the first file has more than 1 error, check that
     # the second file has 1 new error, check also the lines that changed.
@@ -95,12 +107,12 @@ class E2EBase(object):
             os.path.dirname(os.path.realpath(__file__)), 'data')
         self.filename_repo = filename_repo = os.path.join(
             self.temp_directory, '%s%s' % (linter_name, extension))
-        filename_original = os.path.join(
-            data_dirname, linter_name, 'original%s' % extension)
-        filename_error = os.path.join(
-            data_dirname, linter_name, 'error%s' % extension)
-        filename_nonewerror = os.path.join(
-            data_dirname, linter_name, 'nonewerror%s' % extension)
+        filename_original = os.path.join(data_dirname, linter_name,
+                                         'original%s' % extension)
+        filename_error = os.path.join(data_dirname, linter_name,
+                                      'error%s' % extension)
+        filename_nonewerror = os.path.join(data_dirname, linter_name,
+                                           'nonewerror%s' % extension)
 
         self.assertTrue(
             os.path.exists(filename_original),
@@ -108,8 +120,8 @@ class E2EBase(object):
         self.assertTrue(
             os.path.exists(filename_error),
             'You must define file "%s"' % filename_error)
-        self.assertTrue(os.path.exists(
-            filename_nonewerror),
+        self.assertTrue(
+            os.path.exists(filename_nonewerror),
             'You must define file "%s"' % filename_nonewerror)
 
         # Add file 1 (original) to repo
@@ -123,17 +135,16 @@ class E2EBase(object):
         self.assertNotEquals(
             0, response,
             ('Git lint for file %s should have failed.\n git-lint output: %s' +
-             '\nLinter Output:\n%s') %
-            (filename_error,
-             output,
-             self.get_linter_output(linter_name, filename_repo)))
+             '\nLinter Output:\n%s') % (filename_error, output,
+                                        get_linter_output(
+                                            linter_name, filename_repo)))
         self.add(filename_repo)
         self.commit('Commit 2')
 
         # Add file 3 (nonewerror) to repo
         shutil.copy(filename_nonewerror, filename_repo)
         response, output = self.lint()
-        self.assertEquals(
+        self.assertEqual(
             0, response,
             ('Git lint for file %s should have not failed. \nOutput:\n%s') %
             (filename_nonewerror, output))
@@ -143,8 +154,10 @@ class E2EBase(object):
     @classmethod
     def add_linter_check(cls, linter_name, extension):
         """Adds a test for the given linter and extension."""
+
         def test_linter(self):
             self.assert_linter_works(linter_name, extension)
+
         test_linter.__name__ = 'test_linter_%s_with_%s' % (linter_name,
                                                            extension[1:])
         setattr(cls, test_linter.__name__, test_linter)
@@ -157,7 +170,7 @@ class E2EBase(object):
                 cls.add_linter_check(linter.args[0], extension)
 
 
-E2EBase.add_linter_checks()
+E2EMixin.add_linter_checks()
 
 
 def execute(*args, **kwargs):
@@ -170,7 +183,7 @@ def execute(*args, **kwargs):
         raise
 
 
-class TestGitE2E(E2EBase, unittest.TestCase):
+class TestGitE2E(E2EMixin, unittest.TestCase):
     @classmethod
     def init_repo(cls):
         """Initializes a git repo."""
@@ -229,7 +242,7 @@ class TestGitE2E(E2EBase, unittest.TestCase):
                 shutil.rmtree(repo_dir)
 
 
-class TestHgE2E(E2EBase, unittest.TestCase):
+class TestHgE2E(E2EMixin, unittest.TestCase):
     @staticmethod
     def init_repo():
         """Initializes a mercurial repo."""

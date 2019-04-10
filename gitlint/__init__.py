@@ -40,10 +40,13 @@ Options:
 from __future__ import unicode_literals
 
 import codecs
+import functools
 import json
+import multiprocessing
 import os
 import os.path
 import sys
+from concurrent import futures
 
 import docopt
 import termcolor
@@ -52,13 +55,11 @@ import yaml
 import gitlint.git as git
 import gitlint.hg as hg
 import gitlint.linters as linters
+from gitlint.version import __VERSION__
 
-
-__VERSION__ = '0.0.6.1'
-
-ERROR = termcolor.colored('ERROR', 'red', attrs=('bold',))
-SKIPPED = termcolor.colored('SKIPPED', 'yellow', attrs=('bold',))
-OK = termcolor.colored('OK', 'green', attrs=('bold',))
+ERROR = termcolor.colored('ERROR', 'red', attrs=('bold', ))
+SKIPPED = termcolor.colored('SKIPPED', 'yellow', attrs=('bold', ))
+OK = termcolor.colored('OK', 'green', attrs=('bold', ))
 
 
 def find_invalid_filenames(filenames, repository_root):
@@ -74,13 +75,14 @@ def find_invalid_filenames(filenames, repository_root):
     for filename in filenames:
         if not os.path.abspath(filename).startswith(repository_root):
             errors.append((filename, 'Error: File %s does not belong to '
-                          'repository %s' % (filename, repository_root)))
+                           'repository %s' % (filename, repository_root)))
         if not os.path.exists(filename):
             errors.append((filename,
-                          'Error: File %s does not exist' % (filename, )))
+                           'Error: File %s does not exist' % (filename, )))
         if os.path.isdir(filename):
-            errors.append((filename, 'Error: %s is a directory. Directories are'
-                          ' not yet supported' % (filename, )))
+            errors.append((filename,
+                           'Error: %s is a directory. Directories are'
+                           ' not yet supported' % (filename, )))
 
     return errors
 
@@ -163,6 +165,25 @@ def get_vcs_root():
     return (None, None)
 
 
+def process_file(vcs, commit, force, gitlint_config, file_data):
+    """Lint the file
+
+    Returns:
+      The results from the linter.
+    """
+    filename, extra_data = file_data
+
+    if force:
+        modified_lines = None
+    else:
+        modified_lines = vcs.modified_lines(
+            filename, extra_data, commit=commit)
+    result = linters.lint(filename, modified_lines, gitlint_config)
+    result = result[filename]
+
+    return filename, result
+
+
 def main(argv, stdout=sys.stdout, stderr=sys.stderr):
     """Main gitlint routine. To be called from scripts."""
     # Wrap sys stdout for python 2, so print can understand unicode.
@@ -172,11 +193,10 @@ def main(argv, stdout=sys.stdout, stderr=sys.stderr):
             stdout = codecs.getwriter("utf-8")(stdout)
         if stderr == sys.stderr:
             stderr = codecs.getwriter("utf-8")(stderr)
-        linesep = unicode(os.linesep)
+        linesep = unicode(os.linesep)  # pylint: disable=undefined-variable
 
-    arguments = docopt.docopt(__doc__,
-                              argv=argv[1:],
-                              version='git-lint v%s' % __VERSION__)
+    arguments = docopt.docopt(
+        __doc__, argv=argv[1:], version='git-lint v%s' % __VERSION__)
 
     json_output = arguments['--json']
 
@@ -199,67 +219,64 @@ def main(argv, stdout=sys.stdout, stderr=sys.stderr):
                 linesep.join(invalid[1] for invalid in invalid_filenames))
             return 2
 
-        changed_files = vcs.modified_files(repository_root,
-                                           tracked_only=arguments['--tracked'],
-                                           commit=commit)
+        changed_files = vcs.modified_files(
+            repository_root,
+            tracked_only=arguments['--tracked'],
+            commit=commit)
         modified_files = {}
         for filename in arguments['FILENAME']:
             normalized_filename = os.path.abspath(filename)
             modified_files[normalized_filename] = changed_files.get(
                 normalized_filename)
     else:
-        modified_files = vcs.modified_files(repository_root,
-                                            tracked_only=arguments['--tracked'],
-                                            commit=commit)
+        modified_files = vcs.modified_files(
+            repository_root,
+            tracked_only=arguments['--tracked'],
+            commit=commit)
 
     linter_not_found = False
     files_with_problems = 0
     gitlint_config = get_config(repository_root)
     json_result = {}
 
-    for filename in sorted(modified_files.keys()):
-        rel_filename = os.path.relpath(filename)
-        if not json_output:
-            stdout.write('Linting file: %s%s' %
-                         (termcolor.colored(rel_filename, attrs=('bold',)),
-                          linesep))
-        if arguments['--force']:
-            modified_lines = None
-        else:
-            modified_lines = vcs.modified_lines(filename,
-                                                modified_files[filename],
-                                                commit=commit)
+    with futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count())\
+            as executor:
+        processfile = functools.partial(process_file, vcs, commit,
+                                        arguments['--force'], gitlint_config)
+        for filename, result in executor.map(
+                processfile, [(filename, modified_files[filename])
+                              for filename in sorted(modified_files.keys())]):
 
-        result = linters.lint(
-            filename, modified_lines, gitlint_config)
-        result = result[filename]
+            rel_filename = os.path.relpath(filename)
 
-        output_lines = []
-        if result.get('error'):
-            output_lines.extend(
-                '%s: %s' % (ERROR, reason) for reason in result.get('error')
-            )
-            linter_not_found = True
-        if result.get('skipped'):
-            output_lines.extend(
-                '%s: %s' % (SKIPPED, reason) for reason in result.get('skipped')
-            )
-        if result.get('comments', []) == []:
-            if not output_lines:
-                output_lines.append(OK)
-        else:
-            files_with_problems += 1
-            for data in result['comments']:
-                formatted_message = format_comment(data)
-                output_lines.append(formatted_message)
-                data['formatted_message'] = formatted_message
+            if not json_output:
+                stdout.write('Linting file: %s%s' % (termcolor.colored(
+                    rel_filename, attrs=('bold', )), linesep))
 
-        if json_output:
-            json_result[filename] = result
-        else:
-            output = linesep.join(output_lines)
-            stdout.write(output)
-            stdout.write(linesep + linesep)
+            output_lines = []
+            if result.get('error'):
+                output_lines.extend('%s: %s' % (ERROR, reason)
+                                    for reason in result.get('error'))
+                linter_not_found = True
+            if result.get('skipped'):
+                output_lines.extend('%s: %s' % (SKIPPED, reason)
+                                    for reason in result.get('skipped'))
+            if not result.get('comments', []):
+                if not output_lines:
+                    output_lines.append(OK)
+            else:
+                files_with_problems += 1
+                for data in result['comments']:
+                    formatted_message = format_comment(data)
+                    output_lines.append(formatted_message)
+                    data['formatted_message'] = formatted_message
+
+            if json_output:
+                json_result[filename] = result
+            else:
+                output = linesep.join(output_lines)
+                stdout.write(output)
+                stdout.write(linesep + linesep)
 
     if json_output:
         # Hack to convert to unicode, Python3 returns unicode, wheres Python2

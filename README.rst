@@ -43,7 +43,7 @@ Current linters:
 - Python
 
   * `Pylint <http://www.pylint.org/>`_
-  * `PEP8 <https://pypi.python.org/pypi/pep8/1.4.6>`_
+  * `pycodestyle <https://github.com/PyCQA/pycodestyle>`_
 
 - PHP
 
@@ -97,6 +97,10 @@ Current linters:
 - Coffeescript
 
   * `coffeelint <http://www.coffeelint.org/>`_
+
+- C++
+
+  * `cpplint <https://github.com/google/styleguide/tree/gh-pages/cpplint>`_
 
 Example use
 -----------
@@ -190,13 +194,20 @@ Note though that mercurial heavily uses commit to leverage all of their commands
 I've found that setting any sort of precommit hook will get on your way when using common
 actions as ``rebase`` or ``shelve``.
 
+Travis Configuration
+--------------------
+
+To run git lint on Travis, you can add the following step::
+
+  git reset --soft ${TRAVIS_COMMIT_RANGE%...*} && git lint
+
 Limitations
 -----------
 
 In some cases a change will trigger a warning in another line. Those cases are
-unfortunately not handled by git-lint, as it only reports those lines taht were
-modified. Fully supporting this use case would require to run the linters twice
-and report only the new lines. The most common case in which this occurs is with
+unfortunately not handled by git-lint, as it only reports those lines that were
+modified. Fully supporting this use case would require running the linters twice
+and reporting only the new lines. The most common case in which this occurs is with
 unused imports or variables. Let's say we have the following piece of code::
 
   import foo
@@ -208,8 +219,7 @@ If you remove the second line, git-lint will not complain as the warning is for 
 Python Versions
 ---------------
 
-Python 2.7 is supported, and it should also work for Python 3.2, 3.3 and 3.4.
-Python 2.6 is not supported because of the lack of subprocess.check_output.
+Python 2.7 and Python 3.5 and higher are supported.
 
 Development
 -----------
@@ -257,10 +267,33 @@ Contributors
 * `Rovanion Luckey <https://github.com/Rovanion>`_
 * `Radek Simko <https://github.com/radeksimko>`_
 * `Adrien Vergé <https://github.com/adrienverge>`_
-
+* `Rob Rodrigues <https://github.com/irialad>`_
+* `Alex LordThorsen <https://github.com/rawrgulmuffins>`_
 
 Changelog
 =========
+
+v0.1.2 (2018-05-24)
+-------------------
+
+* Fixed race condition when creating cache directories.
+
+v0.1.1 (2018-05-15)
+-------------------
+
+* Fixed futures dependency not working corectly in Python 3.
+
+v0.1.0 (2018-02-26)
+-------------------
+
+* Fixed setup in some systems due to default encodings.
+* Changed version to use semantic versioning. If the version would have been semantic, this release would have been just a patch.
+
+v0.0.9 (2018-01-22)
+-------------------
+
+* Fixed versioning to match in both pip install and package
+* Added multithreading support
 
 v0.0.8 (2015-10-14)
 -------------------

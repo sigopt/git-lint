@@ -13,19 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
+import io
+import os
 from setuptools import setup, find_packages
 
+with io.open(os.path.join('gitlint', 'version.py')) as f:
+    VERSION = ast.literal_eval(f.read().rsplit('=', 1)[1].strip())
+
+with io.open('README.rst', encoding='utf-8') as f:
+    LONG_DESCRIPTION = f.read()
+
+TEST_REQUIRES = ['nose>=1.3', 'mock', 'coverage', 'pyfakefs']
 
 setup(
     name='git-lint',
-    version='0.0.8',
+    version=VERSION,
     description='Git Lint',
-    long_description=open('README.rst').read(),
+    long_description=LONG_DESCRIPTION,
     author='Sebastian Kreft',
     url='http://github.com/sk-/git-lint',
     packages=find_packages(exclude=['test']),
     package_dir={'gitlint': 'gitlint'},
-    package_data={'gitlint': ['configs/*'], '': ['README.rst', 'LICENSE']},
+    package_data={
+        'gitlint': ['configs/*'],
+        '': ['README.rst', 'LICENSE']
+    },
     scripts=[
         'scripts/git-lint',
         'scripts/pre-commit.git-lint.sh',
@@ -37,16 +50,22 @@ setup(
         'scripts/custom_linters/tidy-wrapper.sh',
     ],
     install_requires=[
-        'pyyaml',
-        'termcolor',
         'docopt',
+        'pyyaml',
+        'pathlib2',
+        'termcolor',
         # Packages specific to linters. They are optional, but to ease the use
         # we prefer to put them here.
-        'html-linter',
-        'template-remover',
         'docutils',
+        'html-linter',
     ],
-    tests_require=['nose>=1.3', 'mock'],
+    tests_require=TEST_REQUIRES,
+    setup_requires=['nose>=1.3'],
+    extras_require={
+        ':python_version == "2.7"': ['futures'],
+        'test': TEST_REQUIRES,
+        'dev': ['pycodestyle', 'pylint', 'yapf==0.23.0'],
+    },
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Console',
@@ -56,8 +75,9 @@ setup(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Topic :: Software Development :: Version Control',
     ],
 )

@@ -1,23 +1,34 @@
 language: python
 python:
-  - "2.7"
-  # Pep8 and Pylint are not working correctly with 3.2
-  #- "3.2"
-  - "3.3"
-  - "3.4"
+  - 2.7
+  - 3.5
+  - 3.6
   # The JSON e2e test fails because, the output and exceptions are different
-  #- "pypy"
+  # - "pypy"
+matrix:
+  include:
+    - python: 3.7
+      dist: xenial  # required for Python >= 3.7 (travis-ci/travis-ci#9069)
+cache: pip
 # command to install dependencies
 install:
-  - "pip install ."
-  - "pip install coveralls"
-  - "bash scripts/install-linters.sh"
+  - pip install .[dev,test] coveralls
+  - bash scripts/install-linters.sh
 # command to run tests
 before_script:
-  - export PATH=$PATH:$PWD/pmd-bin/bin:/usr/local/bin
+  - export PATH=$PATH:/tmp/pmd-bin/bin:/usr/local/bin
   - git config --global user.email "john@example.com"
   - git config --global user.name "John Doe"
-  #- "echo -e '[ui]\nusername = John Doe <john@example.com>' >> ~/.hgrc"
-script: "python -R setup.py nosetests"
+script:
+  - env | grep TRAVIS
+  - nosetests
+  - >
+    yapf --parallel --recursive --diff . ||
+    ( ! echo "Run yapf before committing (yapf -pri .)" )
+  - >
+    git reset --soft ${TRAVIS_COMMIT_RANGE%...*} &&
+    git status &&
+    git log | head -n 1 &&
+    git lint
 after_success:
   coveralls

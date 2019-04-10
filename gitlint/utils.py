@@ -17,6 +17,9 @@ import io
 import os
 import re
 
+# This can be just pathlib when 2.7 and 3.4 support is dropped.
+import pathlib2 as pathlib
+
 
 def filter_lines(lines, filter_regex, groups=None):
     """Filters out the lines not matching the pattern.
@@ -43,8 +46,8 @@ def filter_lines(lines, filter_regex, groups=None):
 # TODO(skreft): add test
 def which(program):
     """Returns a list of paths where the program is found."""
-    if (os.path.isabs(program) and os.path.isfile(program) and
-            os.access(program, os.X_OK)):
+    if (os.path.isabs(program) and os.path.isfile(program)
+            and os.access(program, os.X_OK)):
         return [program]
 
     candidates = []
@@ -64,8 +67,7 @@ def programs_not_in_path(programs):
 def _open_for_write(filename):
     """Opens filename for writing, creating the directories if needed."""
     dirname = os.path.dirname(filename)
-    if not os.path.exists(dirname):
-        os.makedirs(dirname)
+    pathlib.Path(dirname).mkdir(parents=True, exist_ok=True)
 
     return io.open(filename, 'w')
 
@@ -93,8 +95,8 @@ def get_output_from_cache(name, filename):
     Returns: a string with the output, if it is still valid, or None otherwise.
     """
     cache_filename = _get_cache_filename(name, filename)
-    if (os.path.exists(cache_filename) and
-            os.path.getmtime(filename) < os.path.getmtime(cache_filename)):
+    if (os.path.exists(cache_filename)
+            and os.path.getmtime(filename) < os.path.getmtime(cache_filename)):
         with io.open(cache_filename) as f:
             return f.read()
 
