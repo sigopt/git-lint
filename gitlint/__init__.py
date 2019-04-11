@@ -102,7 +102,7 @@ def get_config(repo_root):
         if not content:
             yaml_config = {}
         else:
-            yaml_config = yaml.load(content)
+            yaml_config = yaml.load(content, Loader=yaml.FullLoader)
 
     return linters.parse_yaml_config(yaml_config, repo_root)
 
